@@ -115,6 +115,8 @@ namespace Wasabimole.ProceduralTree
 #if UNITY_EDITOR
         [HideInInspector]
         public string MeshInfo; // Used in ProceduralTreeEditor to show info about the tree mesh
+
+        private bool _isGenerating;
 #endif
 
         // ---------------------------------------------------------------------------------------------------------------------------
@@ -141,7 +143,7 @@ namespace Wasabimole.ProceduralTree
 
     public void GenerateTree()
     {
-
+        _isGenerating = true;
         gameObject.isStatic = false;
 
 
@@ -178,6 +180,8 @@ namespace Wasabimole.ProceduralTree
         transform.localRotation = originalRotation; // Restore original object rotation
 
         SetTreeMesh(); // Create/Update MeshFilter's mesh
+        _isGenerating = false;
+        //yield return null;
     }
 
         // ---------------------------------------------------------------------------------------------------------------------------
@@ -423,16 +427,25 @@ namespace Wasabimole.ProceduralTree
             checksumSerialized = checksum = newChecksum;
 
 #if UNITY_EDITOR
-            if (!CanGetPrefabMesh()) 
-#endif          
-                GenerateTree(); // Update tree mesh
+            //if (!CanGetPrefabMesh())
+            if (!CanGetPrefabMesh())
+                GenerateTree();
+#endif
+            //    StartCoroutine();
+            //GenerateTree(); // Update tree mesh
+        }
+
+        public void Start()
+        {
+            UnityEngine.Random.seed = Random.Range(0, 100000000);
+            Seed = UnityEngine.Random.seed;
         }
 
         // ---------------------------------------------------------------------------------------------------------------------------
         // Destroy procedural mesh when object is deleted
         // ---------------------------------------------------------------------------------------------------------------------------
 
-#if UNITY_EDITOR
+/*#if UNITY_EDITOR
         void OnDisable()
         {
             if (filter.sharedMesh == null) return; // If tree has a mesh
@@ -446,6 +459,6 @@ namespace Wasabimole.ProceduralTree
             }
             DestroyImmediate(filter.sharedMesh, true); // Delete procedural mesh
         }
-#endif
+#endif*/
     }
 }

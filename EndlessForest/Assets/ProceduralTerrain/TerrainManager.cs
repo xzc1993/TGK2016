@@ -4,59 +4,38 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Assets.ProceduralTerrain;
 
 public class TerrainManager : MonoBehaviour
 {
-    // Parameters for Unity
-    public Material Material;
-    [Range(5, 10)]
-    public ProceduralTree ProceduralTreePrefab;
-    public int HeightmapResolution;
-    public float ChunkLength;
-    public float ChunkHeight;
+    public TerrainChunk TerrainChunkPrefab;
     public int NeighbourhoodSize;
-    public int TreesCount;
 
-    private Dictionary<TerrainChunkPosition, TerrainChunk> _map = new Dictionary<TerrainChunkPosition, TerrainChunk>();
-    private TerrainChunkPool terrainChunkPool;
+    private Dictionary<TerrainChunkPosition, TerrainChunk> _map;
+    private GameObjectPool _terrainChunkPool;
     private GameObject _playerGameObject;
-    
 
-    // Use this for initialization
     void Start ()
     {
-        ProceduralTreePrefab.MaxNumVertices = 5000;
-        _playerGameObject = GameObject.FindGameObjectWithTag("Player");
-        terrainChunkPool = new TerrainChunkPool((int) Math.Pow(NeighbourhoodSize * 2 + 1, 2))
-        {
-            HeightmapResolution = (int) Mathf.Pow(2, HeightmapResolution) + 1,
-            ChunkHeight = ChunkHeight,
-            ChunkLength = ChunkLength,
-            Material = Material,
-            TreePrefab = ProceduralTreePrefab,
-            TreesCount = TreesCount
-        };
-        terrainChunkPool.Init();
-        DeactivateFarAwayTerrain(true);
-        ActivateNeighborhoodTerrain(true);
         Profiler.enabled = true;
-        Profiler.maxNumberOfSamplesPerFrame = 100000;
-	}
-
-    // Update is called once per frame
-    void Update ()
-    {
-        DeactivateFarAwayTerrain(false);
-        ActivateNeighborhoodTerrain(false);
+        _map = new Dictionary<TerrainChunkPosition, TerrainChunk>();
+        _terrainChunkPool = GameObject.FindGameObjectWithTag("TerrainChunkPool").GetComponent<GameObjectPool>();
+        _playerGameObject = GameObject.FindGameObjectWithTag("Player");
     }
 
-    private void ActivateNeighborhoodTerrain(bool firstExecute)
+    void Update ()
     {
-        TerrainChunkPosition playerPosition = getPlayerChunkPosition();
-        var minX = playerPosition.x - NeighbourhoodSize;
-        var maxX = playerPosition.x + NeighbourhoodSize;
-        var minZ = playerPosition.z - NeighbourhoodSize;
-        var maxZ = playerPosition.z + NeighbourhoodSize;
+        StartCoroutine(DeactivateFarAwayTerrain());
+        ActivateNeighborhoodTerrain();
+    }
+
+    private void ActivateNeighborhoodTerrain()
+    {
+        TerrainChunkPosition playerPosition = GetPlayerChunkPosition();
+        var minX = playerPosition.X - NeighbourhoodSize;
+        var maxX = playerPosition.X + NeighbourhoodSize;
+        var minZ = playerPosition.Z - NeighbourhoodSize;
+        var maxZ = playerPosition.Z + NeighbourhoodSize;
 
         for (int x = minX; x <= maxX; x++)
         {
@@ -65,59 +44,44 @@ public class TerrainManager : MonoBehaviour
                 var chunkPosition = new TerrainChunkPosition(x, z);
                 if (!_map.ContainsKey(chunkPosition))
                 {
-                    var terrainChunk = terrainChunkPool.take();
+                    var terrainChunk = _terrainChunkPool.Take<TerrainChunk>();
                     terrainChunk.ChunkX = x;
                     terrainChunk.ChunkZ = z;
-                    terrainChunk.Activate();
-                    terrainChunk.ActivateTrees();
                     _map[chunkPosition] = terrainChunk;
-                    if (!firstExecute)
-                    {
-                        break;
-                    }
+                    terrainChunk.gameObject.SetActive(true);
                 }
-                /*else
-                {
-                    var terrainChunk = _map[chunkPosition];
-                    if (!terrainChunk.Activated)
-                    {
-                        
-                    }
-                }*/
             }
         }
     }
 
-    private void DeactivateFarAwayTerrain(bool firstExecute)
+    private IEnumerator DeactivateFarAwayTerrain()
     {
-        TerrainChunkPosition playerPosition = getPlayerChunkPosition();
-        var minX = playerPosition.x - NeighbourhoodSize;
-        var maxX = playerPosition.x + NeighbourhoodSize;
-        var minZ = playerPosition.z - NeighbourhoodSize;
-        var maxZ = playerPosition.z + NeighbourhoodSize;
+        TerrainChunkPosition playerPosition = GetPlayerChunkPosition();
+        var minX = playerPosition.X - NeighbourhoodSize;
+        var maxX = playerPosition.X + NeighbourhoodSize;
+        var minZ = playerPosition.Z - NeighbourhoodSize;
+        var maxZ = playerPosition.Z + NeighbourhoodSize;
 
-        var farAwayChunkPositions = _map.Keys.Where(key => key.x < minX || key.x > maxX || key.z < minZ || key.z > maxZ).ToList();
+        var farAwayChunkPositions = _map.Keys.Where(key => key.X < minX || key.X > maxX || key.Z < minZ || key.Z > maxZ).ToList();
         foreach (var position in farAwayChunkPositions)
         {
-            var terrainChunk = _map[position];
-            if (terrainChunk != null)
+            if (_map.ContainsKey(position))
             {
-                _map[position] = null;
-                terrainChunk.Deactivate();
-                terrainChunkPool.put(terrainChunk);
-                if (!firstExecute)
-                {
-                    break;
-                }
+                TerrainChunk terrainChunk = _map[position];
+                _map.Remove(position);
+                yield return StartCoroutine(terrainChunk.FadeOut());
+                terrainChunk.gameObject.SetActive(false);
+                _terrainChunkPool.Put(terrainChunk.gameObject);
             }
         }
+        
     }
 
-    private TerrainChunkPosition getPlayerChunkPosition()
+    private TerrainChunkPosition GetPlayerChunkPosition()
     {
         Vector3 position = _playerGameObject.transform.position;
-        int chunkX = (int) (position.x/ChunkLength);
-        int chunkZ = (int) (position.z/ChunkLength);
+        int chunkX = (int) (position.x/ TerrainChunkPrefab.ChunkLength);
+        int chunkZ = (int) (position.z/ TerrainChunkPrefab.ChunkLength);
         return new TerrainChunkPosition(chunkX, chunkZ);
     }
 }

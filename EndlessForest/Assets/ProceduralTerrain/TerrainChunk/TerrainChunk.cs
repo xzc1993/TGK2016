@@ -1,165 +1,231 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using Wasabimole.ProceduralTree;
+using System.Linq;
+using Assets.ProceduralTerrain;
+using UnityEditorInternal;
+using Assets.ProceduralTerrain.Utils;
 
-public class TerrainChunk
+public class TerrainChunk : MonoBehaviour
 {
-    public Terrain Terrain { get; private set; }
-    public TerrainData TerrainData { get; private set; }
-    public TerrainCollider TerrainCollider { get; private set; }
-    public Texture2D Texture { get; private set; }
-    public List<ProceduralTree> ActiveTrees = new List<ProceduralTree>(); 
+    public int HeightmapResolution;
+    public float ChunkLength;
+    public float ChunkHeight;
+    public int TreesMaxCount;
+    public int BushesMaxCount;
+    public Material Material;
 
     public int ChunkX { get; set; }
     public int ChunkZ { get; set; }
-    public int HeightmapResolution { get; set; }
-    public float ChunkLength { get; set; }
-    public float ChunkHeight { get; set; }
-    public Material Material { get; set; }
-    public ProceduralTree TreePrefab { get; set; }
-    public int TreesCount { get; set; }
-    private float[,] heightmap;
 
-    private TerrainChunkElementsPool _elementsPool;
+    private GameObjectPool _treePool;
+    private GameObjectPool _bushesPool;
 
-    public bool Activated { get; private set; }
+    private List<GameObject> _activeTrees;
+    private List<GameObject> _activeBushes;
 
+    private TerrainData _terrainData;
+    private float[,] _heightmap;
+    private Terrain _terrain;
+    private System.Random _random;
+    private bool _reloading;
+    private bool _initialized;
 
-    public TerrainChunk()
+    public void Awake()
     {
-        Activated = false;
-    }
+        _treePool = GameObject.FindGameObjectWithTag("TreePool").GetComponent<GameObjectPool>();
+        _bushesPool = GameObject.FindGameObjectWithTag("BushesPool").GetComponent<GameObjectPool>();
+        _activeTrees = new List<GameObject>();
+        _activeBushes = new List<GameObject>();
+        _heightmap = new float[HeightmapResolution, HeightmapResolution];
+        _random = new System.Random();
 
-    public void Init()
-    {
-        heightmap = new float[HeightmapResolution, HeightmapResolution];
-        TerrainData = new TerrainData();
-        var terrainGameObject = Terrain.CreateTerrainGameObject(TerrainData);
-        Terrain = terrainGameObject.GetComponent<Terrain>();
-        TerrainCollider = terrainGameObject.GetComponent<TerrainCollider>();
-        _elementsPool = new TerrainChunkElementsPool(TreesCount + 5, TreePrefab);
+        CreateHeightmap();
+        CreateTerrainData();
+        _terrain = Terrain.CreateTerrainGameObject(_terrainData).GetComponent<Terrain>();
+        _terrain.Flush();
         InitTextures();
     }
 
-    public void Deactivate()
+    public void OnEnable()
     {
-        DeactivateTrees();
-        Terrain.gameObject.SetActive(false);
-        Activated = false;
+        Activate();
     }
 
-    public void Activate()
+    public void OnDisable()
     {
-        if (Terrain == null)
-        {
-            Init();
-        }
-        ActivateTerrain();
-        //ActivateTrees();
-        ApplyTerrainTextures();
-        Terrain.Flush();
-        Terrain.gameObject.SetActive(true);
-        
+        Deactivate();
     }
 
-    public void ActivateTrees()
-    {
-        if (ActiveTrees.Count < TreesCount)
-        {
-            Vector3 treePosition = RandomTreePosition();
-            ProceduralTree tree = _elementsPool.takeTree();
-            tree.transform.position = treePosition;
-            tree.gameObject.SetActive(true);
-            ActiveTrees.Add(tree);
-        }
-        else
-        {
-            Activated = true;
-        }
-        
-    }
+    //////////////////////// INIT/////////////////////////
 
-    private void DeactivateTrees()
+    private void CreateTerrainData()
     {
-        foreach (var tree in ActiveTrees)
-        {
-            tree.gameObject.SetActive(false);
-            _elementsPool.putTree(tree);
-        }
-    }
-
-    private void ActivateTerrain()
-    {
-        Terrain.gameObject.transform.position = new Vector3(ChunkX * ChunkLength, 0, ChunkZ * ChunkLength);
-        
-        TerrainData = CreateTerrainData();
-        Terrain.terrainData = TerrainData;
-        TerrainCollider.terrainData = TerrainData;
-    }
-
-    private TerrainData CreateTerrainData()
-    {
-        TerrainData terrainData = new TerrainData();
-        terrainData.heightmapResolution = HeightmapResolution;
-        terrainData.alphamapResolution = HeightmapResolution;
-        terrainData.size = new Vector3(ChunkLength, ChunkHeight, ChunkLength);
-        terrainData.SetHeights(0, 0, CreateHeightmap());
-        return terrainData;
-    }
-
-    private float[,] CreateHeightmap()
-    {
-        Profiler.BeginSample("CreateHeightmap");
-        
-        
-        for (var zRes = 0; zRes < HeightmapResolution; zRes++)
-        {
-            for (var xRes = 0; xRes < HeightmapResolution; xRes++)
-            {
-                var xCoordinate = ChunkX + ((float)xRes /( HeightmapResolution - 1f));
-                var zCoordinate = ChunkZ + ((float)zRes /( HeightmapResolution - 1f));
-                heightmap[zRes, xRes] = Mathf.PerlinNoise(xCoordinate, zCoordinate);
-            }
-        }
-        Profiler.EndSample();
-        return heightmap;
+        _terrainData = new TerrainData();
+        _terrainData.heightmapResolution = (int) (Mathf.Pow(2, HeightmapResolution) + 1);
+        _terrainData.alphamapResolution = (int)(Mathf.Pow(2, HeightmapResolution) + 1);
+        _terrainData.size = new Vector3(ChunkLength, ChunkHeight, ChunkLength);
+        _terrainData.SetHeights(0, 0, _heightmap);
     }
 
     private void InitTextures()
     {
-        Texture = new Texture2D((int)ChunkLength, (int)ChunkLength);
-        Material.SetTexture(1, Texture);
-        Terrain.materialTemplate = Material;
-        Terrain.materialType = Terrain.MaterialType.Custom;
+        _terrain.materialTemplate = Material;
+        _terrainData.wavingGrassAmount = 2;
+        _terrainData.wavingGrassStrength = 1;
+        _terrain.materialType = Terrain.MaterialType.Custom;
     }
 
-    private void ApplyTerrainTextures()
+    /////////////////////// ACTIVATE ///////////////////////
+
+    public void Activate()
     {
-
+        StartCoroutine(ActivateCoroutine());
     }
 
-//    private List<Vector3> RandomTreePositions()
-//    {
-//        List<Vector3> positions = new List<Vector3>(TreesCount);
-//        for (int i = 0; i < TreesCount; i++)
-//        {
-//
-//            positions.Add(treePosition);
-//        }
-//        return positions;
-//    }
+    private IEnumerator ActivateCoroutine()
+    {
+        _reloading = true;
+        yield return StartCoroutine(ActivateTerrain());
+        yield return StartCoroutine(ActivateTrees());
+        yield return StartCoroutine(ActivateBushes());
+        FadeIn();
+        _reloading = false;
+    }
+
+    private IEnumerator ActivateTerrain()
+    {
+        _terrain.gameObject.transform.position = new Vector3(ChunkX * ChunkLength, 0, ChunkZ * ChunkLength);
+        CreateHeightmap();
+        _terrainData.SetHeights(0, 0, _heightmap);
+        _terrain.gameObject.SetActive(true);
+
+        _reloading = false;
+        yield return null;
+    }
+
+    private IEnumerator ActivateTrees()
+    {
+        foreach (Vector3 position in RandomTreePositions())
+        {
+            GameObject tree = _treePool.Take();
+            tree.transform.position = position;
+            FadeUtils.SetFadeOut(tree);
+            tree.SetActive(true);
+            _activeTrees.Add(tree);
+            yield return new WaitForSeconds(0.1f);
+        }
+    }
+
+    private IEnumerator ActivateBushes()
+    {
+        foreach (var position in RandomBushesPositions())
+        {
+            GameObject bush = _bushesPool.Take();
+            bush.transform.position = position;
+            bush.SetActive(true);
+            _activeBushes.Add(bush);
+            yield return null;
+        }
+    }
+
+    /////////////////////// DEACTIVATE ///////////////////////
+
+    private void Deactivate()
+    {
+        DeactivateTerrain();
+        DeactivateTrees();
+        DeactivateBushes();
+    }
+
+    private void DeactivateTerrain()
+    {
+        if (_terrain != null)
+        {
+            _terrain.gameObject.SetActive(false);
+        }
+    }
+
+    private void DeactivateTrees()
+    {
+        foreach (var tree in _activeTrees)
+        {
+            if (tree != null)
+            {
+                tree.SetActive(false);
+                _treePool.Put(tree);
+            }
+        }
+        _activeTrees.Clear();
+    }
+
+    private void DeactivateBushes()
+    {
+        foreach (var bush in _activeBushes)
+        {
+            if (bush != null)
+            {
+                bush.SetActive(false);
+                _bushesPool.Put(bush);
+            }
+        }
+        _activeTrees.Clear();
+    }
+
+    public void FadeIn()
+    {
+        var objectsToFade = _activeTrees.Concat(_activeBushes).ToList();
+        StartCoroutine(FadeUtils.FadeIn(objectsToFade));
+    }
+
+    public IEnumerator FadeOut()
+    {
+        var objectsToFade = _activeTrees.Concat(_activeBushes).ToList();
+        yield return StartCoroutine(FadeUtils.FadeOut(objectsToFade));
+    }
+
+    /////////////////////////////// OTHER ///////////////////////////////
+
+    private void CreateHeightmap()
+    {
+        for (var zRes = 0; zRes < HeightmapResolution; zRes++)
+        {
+            for (var xRes = 0; xRes < HeightmapResolution; xRes++)
+            {
+                var xCoordinate = ChunkX + xRes /( HeightmapResolution - 1f);
+                var zCoordinate = ChunkZ + zRes / ( HeightmapResolution - 1f);
+                _heightmap[zRes, xRes] = Mathf.PerlinNoise(xCoordinate, zCoordinate);
+            }
+        }
+    }
+
+    private IEnumerable<Vector3> RandomBushesPositions()
+    {
+        for (int i = 0; i < _random.Next(TreesMaxCount); i++)
+        {
+            yield return RandomTreePosition();
+        }
+    }
+
+    private IEnumerable<Vector3> RandomTreePositions()
+    {
+        for (int i = 0; i < _random.Next(TreesMaxCount); i++)
+        {
+            yield return RandomTreePosition();
+        }
+    }
+
 
     private Vector3 RandomTreePosition()
     {
-        var terrainPosition = Terrain.GetPosition();
+        var terrainPosition = _terrain.GetPosition();
         var treeRelativeX = Random.value % ChunkLength;
         var treeRelativeZ = Random.value % ChunkLength;
         var xRes = ((ChunkX + treeRelativeX) * HeightmapResolution);
         var zRes = ((ChunkZ + treeRelativeZ) * HeightmapResolution);
 
         var treeX = terrainPosition.x + treeRelativeX * ChunkLength;
-        var treeY = Terrain.terrainData.GetHeight((int)xRes, (int)zRes) - 0.1;
+        var treeY = _terrainData.GetHeight((int)xRes, (int)zRes) - 0.1;
         var treeZ = terrainPosition.z + treeRelativeZ * ChunkLength;
         return new Vector3(treeX, (float)treeY, treeZ);
     }
