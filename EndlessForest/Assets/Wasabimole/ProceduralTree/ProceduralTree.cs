@@ -435,7 +435,7 @@ namespace Wasabimole.ProceduralTree
             //GenerateTree(); // Update tree mesh
         }
 
-        public void Start()
+        public void Awake()
         {
             UnityEngine.Random.seed = Random.Range(0, 100000000);
             Seed = UnityEngine.Random.seed;

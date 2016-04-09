@@ -74,7 +74,6 @@ public class TerrainManager : MonoBehaviour
                 _terrainChunkPool.Put(terrainChunk.gameObject);
             }
         }
-        
     }
 
     private TerrainChunkPosition GetPlayerChunkPosition()

@@ -1,50 +1,103 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Assets.ProceduralTerrain;
 using UnityEditorInternal;
 using Assets.ProceduralTerrain.Utils;
+using LibNoise.Unity;
+using LibNoise.Unity.Generator;
+using LibNoise.Unity.Operator;
+using Random = UnityEngine.Random;
 
 public class TerrainChunk : MonoBehaviour
 {
+    [Header("Chunk")]
     public int HeightmapResolution;
     public float ChunkLength;
     public float ChunkHeight;
+
+    [Header("Objects")]
     public int TreesMaxCount;
     public int BushesMaxCount;
+    public int RocksMaxCount;
+
+    [Header("Terrain")]
     public Material Material;
+    public int DetailResolution;
+    public float DetailObjectDensity;
+    public float DetailObjectDistance;
+
+    [Header("Grass")]
+    public float WavingGrassStrength;
+    public float WavingGrassAmount;
+    public float WavingGrassSpeed;
+    public List<GrassDetails> GrassPrototypes;
 
     public int ChunkX { get; set; }
     public int ChunkZ { get; set; }
 
     private GameObjectPool _treePool;
     private GameObjectPool _bushesPool;
-
-    private List<GameObject> _activeTrees;
-    private List<GameObject> _activeBushes;
+    private GameObjectPool _rockPool;
+    private GameObjectManager _treeManager;
+    private GameObjectManager _bushManager;
+    private GameObjectManager _rockManager;
 
     private TerrainData _terrainData;
-    private float[,] _heightmap;
     private Terrain _terrain;
+    private float[,] _heightmap;
+    private List<int[,]> _detailmaps;
+
     private System.Random _random;
-    private bool _reloading;
-    private bool _initialized;
 
     public void Awake()
     {
         _treePool = GameObject.FindGameObjectWithTag("TreePool").GetComponent<GameObjectPool>();
         _bushesPool = GameObject.FindGameObjectWithTag("BushesPool").GetComponent<GameObjectPool>();
-        _activeTrees = new List<GameObject>();
-        _activeBushes = new List<GameObject>();
+        _rockPool = GameObject.FindGameObjectWithTag("RockPool").GetComponent<GameObjectPool>();
+        _treeManager = new GameObjectManager(_treePool, RandomPositions(TreesMaxCount));
+        _bushManager = new GameObjectManager(_bushesPool, RandomPositions(BushesMaxCount));
+        _rockManager = new GameObjectManager(_rockPool, RandomRockPositions());
+
         _heightmap = new float[HeightmapResolution, HeightmapResolution];
+        _detailmaps = new List<int[,]>();
         _random = new System.Random();
 
         CreateHeightmap();
+        CreateDetailmap();
         CreateTerrainData();
         _terrain = Terrain.CreateTerrainGameObject(_terrainData).GetComponent<Terrain>();
-        _terrain.Flush();
         InitTextures();
+        InitGrass();
+
+    }
+
+
+    void InitGrass()
+    {
+        var detailPrototypes = GrassPrototypes.Select(grassPrototype =>
+            new DetailPrototype
+            {
+                prototypeTexture = grassPrototype.GrassTexture,
+                healthyColor = grassPrototype.HealthyColor,
+                dryColor = grassPrototype.DryColor,
+                renderMode = DetailRenderMode.Grass
+            });
+        _terrainData.detailPrototypes = detailPrototypes.ToArray();
+        _terrainData.wavingGrassStrength = WavingGrassStrength;
+        _terrainData.wavingGrassAmount = WavingGrassAmount;
+        _terrainData.wavingGrassSpeed = WavingGrassSpeed;
+        _terrain.detailObjectDensity = DetailObjectDensity;
+        _terrain.detailObjectDistance = DetailObjectDistance;
+        _terrainData.SetDetailResolution(DetailResolution, DetailResolution / 2);
+        for (int i = 0; i < GrassPrototypes.Count; i++)
+        {
+            _terrainData.SetDetailLayer(0, 0, i, _detailmaps[i]);
+        }
+        
     }
 
     public void OnEnable()
@@ -62,8 +115,8 @@ public class TerrainChunk : MonoBehaviour
     private void CreateTerrainData()
     {
         _terrainData = new TerrainData();
-        _terrainData.heightmapResolution = (int) (Mathf.Pow(2, HeightmapResolution) + 1);
-        _terrainData.alphamapResolution = (int)(Mathf.Pow(2, HeightmapResolution) + 1);
+        _terrainData.heightmapResolution = HeightmapResolution;
+        _terrainData.alphamapResolution = HeightmapResolution;
         _terrainData.size = new Vector3(ChunkLength, ChunkHeight, ChunkLength);
         _terrainData.SetHeights(0, 0, _heightmap);
     }
@@ -71,8 +124,6 @@ public class TerrainChunk : MonoBehaviour
     private void InitTextures()
     {
         _terrain.materialTemplate = Material;
-        _terrainData.wavingGrassAmount = 2;
-        _terrainData.wavingGrassStrength = 1;
         _terrain.materialType = Terrain.MaterialType.Custom;
     }
 
@@ -85,12 +136,11 @@ public class TerrainChunk : MonoBehaviour
 
     private IEnumerator ActivateCoroutine()
     {
-        _reloading = true;
         yield return StartCoroutine(ActivateTerrain());
-        yield return StartCoroutine(ActivateTrees());
-        yield return StartCoroutine(ActivateBushes());
+        yield return StartCoroutine(_treeManager.Activate());
+        yield return StartCoroutine(_bushManager.Activate());
+        yield return StartCoroutine(_rockManager.Activate());
         FadeIn();
-        _reloading = false;
     }
 
     private IEnumerator ActivateTerrain()
@@ -99,34 +149,7 @@ public class TerrainChunk : MonoBehaviour
         CreateHeightmap();
         _terrainData.SetHeights(0, 0, _heightmap);
         _terrain.gameObject.SetActive(true);
-
-        _reloading = false;
         yield return null;
-    }
-
-    private IEnumerator ActivateTrees()
-    {
-        foreach (Vector3 position in RandomTreePositions())
-        {
-            GameObject tree = _treePool.Take();
-            tree.transform.position = position;
-            FadeUtils.SetFadeOut(tree);
-            tree.SetActive(true);
-            _activeTrees.Add(tree);
-            yield return new WaitForSeconds(0.1f);
-        }
-    }
-
-    private IEnumerator ActivateBushes()
-    {
-        foreach (var position in RandomBushesPositions())
-        {
-            GameObject bush = _bushesPool.Take();
-            bush.transform.position = position;
-            bush.SetActive(true);
-            _activeBushes.Add(bush);
-            yield return null;
-        }
     }
 
     /////////////////////// DEACTIVATE ///////////////////////
@@ -134,8 +157,9 @@ public class TerrainChunk : MonoBehaviour
     private void Deactivate()
     {
         DeactivateTerrain();
-        DeactivateTrees();
-        DeactivateBushes();
+        _treeManager.Deactivate();
+        _bushManager.Deactivate();
+        _rockManager.Deactivate();
     }
 
     private void DeactivateTerrain()
@@ -146,42 +170,23 @@ public class TerrainChunk : MonoBehaviour
         }
     }
 
-    private void DeactivateTrees()
-    {
-        foreach (var tree in _activeTrees)
-        {
-            if (tree != null)
-            {
-                tree.SetActive(false);
-                _treePool.Put(tree);
-            }
-        }
-        _activeTrees.Clear();
-    }
-
-    private void DeactivateBushes()
-    {
-        foreach (var bush in _activeBushes)
-        {
-            if (bush != null)
-            {
-                bush.SetActive(false);
-                _bushesPool.Put(bush);
-            }
-        }
-        _activeTrees.Clear();
-    }
-
     public void FadeIn()
     {
-        var objectsToFade = _activeTrees.Concat(_activeBushes).ToList();
-        StartCoroutine(FadeUtils.FadeIn(objectsToFade));
+        StartCoroutine(FadeUtils.FadeIn(GetObjectsToFade()));
     }
 
     public IEnumerator FadeOut()
     {
-        var objectsToFade = _activeTrees.Concat(_activeBushes).ToList();
-        yield return StartCoroutine(FadeUtils.FadeOut(objectsToFade));
+        yield return StartCoroutine(FadeUtils.FadeOut(GetObjectsToFade()));
+    }
+
+    private List<GameObject> GetObjectsToFade()
+    {
+        List<GameObject> objectsToFade = new List<GameObject>();
+        objectsToFade.AddRange(_treeManager.ObjectList);
+        objectsToFade.AddRange(_bushManager.ObjectList);
+        objectsToFade.AddRange(_rockManager.ObjectList);
+        return objectsToFade;
     }
 
     /////////////////////////////// OTHER ///////////////////////////////
@@ -192,29 +197,53 @@ public class TerrainChunk : MonoBehaviour
         {
             for (var xRes = 0; xRes < HeightmapResolution; xRes++)
             {
-                var xCoordinate = ChunkX + xRes /( HeightmapResolution - 1f);
-                var zCoordinate = ChunkZ + zRes / ( HeightmapResolution - 1f);
+                var xCoordinate = ChunkX + xRes / (HeightmapResolution - 1f);
+                var zCoordinate = ChunkZ + zRes / (HeightmapResolution - 1f);
                 _heightmap[zRes, xRes] = Mathf.PerlinNoise(xCoordinate, zCoordinate);
             }
         }
     }
 
-    private IEnumerable<Vector3> RandomBushesPositions()
+    private void CreateDetailmap()
     {
-        for (int i = 0; i < _random.Next(TreesMaxCount); i++)
+        for (int i = 0; i < GrassPrototypes.Count; i++)
         {
-            yield return RandomTreePosition();
+            _detailmaps.Insert(i, new int[DetailResolution, DetailResolution]);
+            for (var zRes = 0; zRes < DetailResolution; zRes++)
+            {
+                for (var xRes = 0; xRes < DetailResolution; xRes++)
+                {
+                    _detailmaps[i][zRes, xRes] = _random.NextDouble() < GrassPrototypes[i].Probability ? 1 : 0;
+                }
+            }
         }
     }
 
-    private IEnumerable<Vector3> RandomTreePositions()
+    private GetPositionsDelegate RandomRockPositions()
     {
-        for (int i = 0; i < _random.Next(TreesMaxCount); i++)
+        return delegate
         {
-            yield return RandomTreePosition();
-        }
+            List<Vector3> positions = new List<Vector3>();
+            for (int i = 0; i < _random.Next(RocksMaxCount); i++)
+            {
+                positions.Add(RandomTreePosition() + new Vector3(0, 0.2f, 0));
+            }
+            return positions;
+        };
     }
 
+    private GetPositionsDelegate RandomPositions(int maxCount)
+    {
+        return delegate
+        {
+            List<Vector3> positions = new List<Vector3>();
+            for (int i = 0; i < _random.Next(maxCount); i++)
+            {
+                positions.Add(RandomTreePosition());
+            }
+            return positions;
+        };
+    }
 
     private Vector3 RandomTreePosition()
     {
@@ -225,7 +254,7 @@ public class TerrainChunk : MonoBehaviour
         var zRes = ((ChunkZ + treeRelativeZ) * HeightmapResolution);
 
         var treeX = terrainPosition.x + treeRelativeX * ChunkLength;
-        var treeY = _terrainData.GetHeight((int)xRes, (int)zRes) - 0.1;
+        var treeY = _terrainData.GetHeight((int)xRes, (int)zRes) - 0.5;
         var treeZ = terrainPosition.z + treeRelativeZ * ChunkLength;
         return new Vector3(treeX, (float)treeY, treeZ);
     }
