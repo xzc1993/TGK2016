@@ -17,9 +17,11 @@ public class comp_cs : MonoBehaviour {
 	public Texture[] skin,eyes;
 	public AudioClip Smallstep,Comp_Roar1,Comp_Roar2,Comp_Call1,Comp_Call2,Comp_Jump,Bite;
 
+
 	int AIState = 0;
 	int currentWaypointID = 0;
 	Vector3 waypointPosition = new Vector3();
+	float sleepUntil = 0;
 
 	void Awake ()
 	{
@@ -113,9 +115,10 @@ public class comp_cs : MonoBehaviour {
 			anim.SetBool("Onground", true);
 		} 
 		else{
+			Debug.Log(collision.gameObject.name);
 			if(collision.gameObject.name != "Cube" && AIState == 1){
 				Vector2 offset = Random.insideUnitCircle * 10;
-				waypointPosition = transform.position + new Vector3( offset.x, 0.0f, offset.y);
+				waypointPosition = transform.position - (waypointPosition - transform.position);
 			}
 		}
 	}
@@ -127,7 +130,37 @@ public class comp_cs : MonoBehaviour {
 		//***************************************************************************************
 		//Moves animation controller
 		if( AIState == 0){
+			if( Random.value < 0.005f && AIState == 0){
+				anim.SetBool("Growl", true);
+				AIState = 2;
+			}
+			if( Random.value < 0.005f && AIState == 0){
+				anim.SetInteger ("Idle", 1); //Idle 1
+				AIState = 2;
+			}
+			if ( Random.value < 0.005f && AIState == 0){
+				anim.SetInteger ("Idle", 2); //Idle 2
+				AIState = 2;
+			}
+			if ( Random.value < 0.005f && AIState == 0){
+				anim.SetInteger ("Idle", 3); //Idle 3
+				AIState = 2;
+			}
+			if ( Random.value < 0.005f && AIState == 0){
+				anim.SetInteger ("Idle", 4); //Eat
+				AIState = 2;
+			}
+			if ( Random.value < 0.005f && AIState == 0){
+				anim.SetInteger ("Idle", 5); //Drink
+				AIState = 2;
+			}
+			if ( Random.value < 0.001f && AIState == 0){
+				anim.SetInteger ("Idle", 6); //Sleep
+				sleepUntil = Time.time + Random.value * 60 + 10;
+				AIState = 3;
+			}
 			if( Random.value < 0.02f){
+				anim.SetInteger("Idle", 0);
 				Vector2 offset = Random.insideUnitCircle * 10;
 				waypointPosition = transform.position + new Vector3( offset.x, 0.0f, offset.y);
 				AIState = 1;
@@ -138,11 +171,7 @@ public class comp_cs : MonoBehaviour {
 			waypointPosition.y = transform.position.y;
 			Vector3 offset = Vector3.ClampMagnitude( waypointPosition - transform.position, 0.1f);
 
-			//Debug.Log( System.String.Format( "{0}, {1}", transform.position.x, transform.position.z));
-			//Debug.Log( System.String.Format( "{0}, {1}", offset.x, offset.z));
-			//Debug.Log( System.String.Format( "{0}, {1}", transform.position.x + offset.x, transform.position.z + offset.z));
 			transform.position = new Vector3( transform.position.x + offset.x, transform.position.y, transform.position.z + offset.z);
-			//Debug.Log( System.String.Format( "{0}, {1}", transform.position.x, transform.position.z));
 			transform.rotation = Quaternion.LookRotation( offset);
 			if( (waypointPosition.x - transform.position.x) < 0.1f && (waypointPosition.z - transform.position.z) < 0.1f){
 				Debug.Log( System.String.Format( "Waypoint #{0} reached!", currentWaypointID));
@@ -152,6 +181,23 @@ public class comp_cs : MonoBehaviour {
 				AIState = 0;
 			}
 		}
+		else if( AIState == 2){
+			anim.SetBool("Growl", false);
+			anim.SetInteger( "Idle", 0);
+			if( anim.GetCurrentAnimatorStateInfo(0).IsName("Comp|StandA") && !anim.IsInTransition(0)){
+				AIState = 0;
+			}
+		}
+		else if( AIState == 3){
+			if( Time.time > sleepUntil){
+				Debug.Log("Wake up");
+				AIState = 2;
+			}
+		}
+
+		//if (Input.GetKey (KeyCode.E)) anim.SetBool ("Growl", true);
+		//else anim.SetBool ("Growl", false);
+		
 		/*
 		//Attack animation controller
 		if (Input.GetKey (KeyCode.Mouse0) && Input.GetKey (KeyCode.LeftShift)) anim.SetInteger ("Attack", 2);
@@ -193,8 +239,7 @@ public class comp_cs : MonoBehaviour {
 		else
 			anim.SetInteger ("Idle", 0);
 
-		if (Input.GetKey (KeyCode.E)) anim.SetBool ("Growl", true);
-		else anim.SetBool ("Growl", false);
+
 
 		//Reset spine position
 		if (anim.GetCurrentAnimatorStateInfo (0).IsName ("Comp|SleepLoop") ||
@@ -293,7 +338,7 @@ public class comp_cs : MonoBehaviour {
 					balance = 0.0F; 
 			}
 		}
-
+		*/
 
 		//***************************************************************************************
 		//Sound Fx code
@@ -587,7 +632,7 @@ public class comp_cs : MonoBehaviour {
 			else if(animcount!=1) soundplayed=false;
 		}
 
-		*/
+		
 	}
 
 
