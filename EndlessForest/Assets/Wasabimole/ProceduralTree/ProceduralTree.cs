@@ -123,7 +123,7 @@ namespace Wasabimole.ProceduralTree
         // Initialise object, make sure it has MeshFilter and MeshRenderer components
         // ---------------------------------------------------------------------------------------------------------------------------
 
-        void OnEnable()
+        void OnEnableA()
         {
             if (filter != null && Renderer != null) return;
 
@@ -415,8 +415,13 @@ namespace Wasabimole.ProceduralTree
         // Update function will return, unless the tree parameters have changed
         // ---------------------------------------------------------------------------------------------------------------------------
 
-        public void Update()
+        public void Awake()
         {
+
+            UnityEngine.Random.seed = Random.Range(0, 100000000);
+            Seed = UnityEngine.Random.seed;
+
+            OnEnableA();
             // Tree parameter checksum (add any new parameters here!)
             var newChecksum = (Seed & 0xFFFF) + NumberOfSides + SegmentLength + BaseRadius + MaxNumVertices +
                 RadiusStep + MinimumRadius + Twisting + BranchProbability + BranchRoundness + LeafProbability + LeafMaximumRadius;
@@ -435,10 +440,9 @@ namespace Wasabimole.ProceduralTree
             //GenerateTree(); // Update tree mesh
         }
 
-        public void Awake()
+        public void Update()
         {
-            UnityEngine.Random.seed = Random.Range(0, 100000000);
-            Seed = UnityEngine.Random.seed;
+
         }
 
         // ---------------------------------------------------------------------------------------------------------------------------

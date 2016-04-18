@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Xml.XPath;
 using Assets.ProceduralTerrain;
 using UnityEditorInternal;
 using Assets.ProceduralTerrain.Utils;
@@ -36,15 +37,22 @@ public class TerrainChunk : MonoBehaviour
     public float WavingGrassSpeed;
     public List<GrassDetails> GrassPrototypes;
 
+    [Header("Lakes")]
+    public GameObject WaterPrefab;
+    public float WaterProbability;
+    public float SeaLevel;
+
     public int ChunkX { get; set; }
     public int ChunkZ { get; set; }
 
     private GameObjectPool _treePool;
     private GameObjectPool _bushesPool;
     private GameObjectPool _rockPool;
+    private GameObjectPool _waterPool;
     private GameObjectManager _treeManager;
     private GameObjectManager _bushManager;
     private GameObjectManager _rockManager;
+    private GameObjectManager _waterManager;
 
     private TerrainData _terrainData;
     private Terrain _terrain;
@@ -53,51 +61,38 @@ public class TerrainChunk : MonoBehaviour
 
     private System.Random _random;
 
+
+    private bool _activated;
+    private bool _activating;
+
     public void Awake()
     {
         _treePool = GameObject.FindGameObjectWithTag("TreePool").GetComponent<GameObjectPool>();
         _bushesPool = GameObject.FindGameObjectWithTag("BushesPool").GetComponent<GameObjectPool>();
         _rockPool = GameObject.FindGameObjectWithTag("RockPool").GetComponent<GameObjectPool>();
+        _waterPool = GameObject.FindGameObjectWithTag("WaterPool").GetComponent<GameObjectPool>();
         _treeManager = new GameObjectManager(_treePool, RandomPositions(TreesMaxCount));
         _bushManager = new GameObjectManager(_bushesPool, RandomPositions(BushesMaxCount));
         _rockManager = new GameObjectManager(_rockPool, RandomRockPositions());
+        _waterManager = new GameObjectManager(_waterPool, RandomLakePositions(), false);
 
         _heightmap = new float[HeightmapResolution, HeightmapResolution];
         _detailmaps = new List<int[,]>();
         _random = new System.Random();
 
-        CreateHeightmap();
-        CreateDetailmap();
+    }
+
+    private IEnumerator Init()
+    {
+        _activating = true;
         CreateTerrainData();
         _terrain = Terrain.CreateTerrainGameObject(_terrainData).GetComponent<Terrain>();
         InitTextures();
+        CreateDetailmap();
         InitGrass();
-
-    }
-
-
-    void InitGrass()
-    {
-        var detailPrototypes = GrassPrototypes.Select(grassPrototype =>
-            new DetailPrototype
-            {
-                prototypeTexture = grassPrototype.GrassTexture,
-                healthyColor = grassPrototype.HealthyColor,
-                dryColor = grassPrototype.DryColor,
-                renderMode = DetailRenderMode.Grass
-            });
-        _terrainData.detailPrototypes = detailPrototypes.ToArray();
-        _terrainData.wavingGrassStrength = WavingGrassStrength;
-        _terrainData.wavingGrassAmount = WavingGrassAmount;
-        _terrainData.wavingGrassSpeed = WavingGrassSpeed;
-        _terrain.detailObjectDensity = DetailObjectDensity;
-        _terrain.detailObjectDistance = DetailObjectDistance;
-        _terrainData.SetDetailResolution(DetailResolution, DetailResolution / 2);
-        for (int i = 0; i < GrassPrototypes.Count; i++)
-        {
-            _terrainData.SetDetailLayer(0, 0, i, _detailmaps[i]);
-        }
-        
+        _activating = false;
+        _activated = true;
+        yield return null;
     }
 
     public void OnEnable()
@@ -127,6 +122,30 @@ public class TerrainChunk : MonoBehaviour
         _terrain.materialType = Terrain.MaterialType.Custom;
     }
 
+    void InitGrass()
+    {
+        var detailPrototypes = GrassPrototypes.Select(grassPrototype =>
+            new DetailPrototype
+            {
+                prototypeTexture = grassPrototype.GrassTexture,
+                healthyColor = grassPrototype.HealthyColor,
+                dryColor = grassPrototype.DryColor,
+                renderMode = DetailRenderMode.Grass
+            });
+        _terrainData.detailPrototypes = detailPrototypes.ToArray();
+        _terrainData.wavingGrassStrength = WavingGrassStrength;
+        _terrainData.wavingGrassAmount = WavingGrassAmount;
+        _terrainData.wavingGrassSpeed = WavingGrassSpeed;
+        _terrain.detailObjectDensity = DetailObjectDensity;
+        _terrain.detailObjectDistance = DetailObjectDistance;
+        _terrainData.SetDetailResolution(DetailResolution, DetailResolution / 2);
+        for (int i = 0; i < GrassPrototypes.Count; i++)
+        {
+            _terrainData.SetDetailLayer(0, 0, i, _detailmaps[i]);
+        }
+
+    }
+
     /////////////////////// ACTIVATE ///////////////////////
 
     public void Activate()
@@ -136,10 +155,15 @@ public class TerrainChunk : MonoBehaviour
 
     private IEnumerator ActivateCoroutine()
     {
+        if (!_activating && !_activated)
+        {
+            yield return StartCoroutine(Init());
+        }
         yield return StartCoroutine(ActivateTerrain());
         yield return StartCoroutine(_treeManager.Activate());
         yield return StartCoroutine(_bushManager.Activate());
         yield return StartCoroutine(_rockManager.Activate());
+        yield return StartCoroutine(_waterManager.Activate());
         FadeIn();
     }
 
@@ -147,7 +171,12 @@ public class TerrainChunk : MonoBehaviour
     {
         _terrain.gameObject.transform.position = new Vector3(ChunkX * ChunkLength, 0, ChunkZ * ChunkLength);
         CreateHeightmap();
+        CreateDetailmap();
         _terrainData.SetHeights(0, 0, _heightmap);
+        for (int i = 0; i < GrassPrototypes.Count; i++)
+        {
+            _terrainData.SetDetailLayer(0, 0, i, _detailmaps[i]);
+        }
         _terrain.gameObject.SetActive(true);
         yield return null;
     }
@@ -160,6 +189,7 @@ public class TerrainChunk : MonoBehaviour
         _treeManager.Deactivate();
         _bushManager.Deactivate();
         _rockManager.Deactivate();
+        _waterManager.Deactivate();
     }
 
     private void DeactivateTerrain()
@@ -186,6 +216,7 @@ public class TerrainChunk : MonoBehaviour
         objectsToFade.AddRange(_treeManager.ObjectList);
         objectsToFade.AddRange(_bushManager.ObjectList);
         objectsToFade.AddRange(_rockManager.ObjectList);
+        //objectsToFade.AddRange(_waterManager.ObjectList);
         return objectsToFade;
     }
 
@@ -194,12 +225,13 @@ public class TerrainChunk : MonoBehaviour
     private void CreateHeightmap()
     {
         for (var zRes = 0; zRes < HeightmapResolution; zRes++)
-        {
+        {   
             for (var xRes = 0; xRes < HeightmapResolution; xRes++)
             {
                 var xCoordinate = ChunkX + xRes / (HeightmapResolution - 1f);
                 var zCoordinate = ChunkZ + zRes / (HeightmapResolution - 1f);
-                _heightmap[zRes, xRes] = Mathf.PerlinNoise(xCoordinate, zCoordinate);
+                _heightmap[zRes, xRes] =  Mathf.PerlinNoise(xCoordinate, zCoordinate);
+                _heightmap[zRes, xRes] -= 0.5f * Mathf.PerlinNoise(1000 + xCoordinate, 1000 + zCoordinate);
             }
         }
     }
@@ -217,6 +249,28 @@ public class TerrainChunk : MonoBehaviour
                 }
             }
         }
+    }
+
+    
+    private GetPositionsDelegate RandomLakePositions()
+    {
+        return delegate
+        {
+            List<Vector3> positions = new List<Vector3>();
+            for (var zRes = 0; zRes < HeightmapResolution; zRes += 6)
+            {
+                for (var xRes = 0; xRes < HeightmapResolution; xRes += 6)
+                {
+                    var xCoordinate = ChunkX + xRes / (HeightmapResolution - 1f);
+                    var zCoordinate = ChunkZ + zRes / (HeightmapResolution - 1f);
+                    if (_heightmap[zRes, xRes] < (SeaLevel / ChunkHeight))
+                    {
+                        positions.Add(new Vector3(xCoordinate * ChunkLength, SeaLevel, zCoordinate * ChunkLength));
+                    }
+                }
+            }
+            return positions;
+        };
     }
 
     private GetPositionsDelegate RandomRockPositions()

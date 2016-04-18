@@ -16,9 +16,11 @@ namespace Assets.ProceduralTerrain
         public List<GameObject> ObjectList { get; set; }
         public GameObjectPool ObjectPool { get; set; }
         public GetPositionsDelegate GetPositions { get; set; }
+        private bool _fade;
 
-        public GameObjectManager(GameObjectPool objectPool, GetPositionsDelegate getPositions)
+        public GameObjectManager(GameObjectPool objectPool, GetPositionsDelegate getPositions, bool fade=true)
         {
+            this._fade = fade;
             ObjectList = new List<GameObject>();
             ObjectPool = objectPool;
             GetPositions = getPositions;
@@ -30,10 +32,13 @@ namespace Assets.ProceduralTerrain
             {
                 GameObject obj = ObjectPool.Take();
                 obj.transform.position = position;
-                FadeUtils.SetFadeOut(obj);
+                if (_fade)
+                {
+                    FadeUtils.SetFadeOut(obj);
+                }
                 obj.SetActive(true);
                 ObjectList.Add(obj);
-                yield return new WaitForSeconds(0.1f);
+                yield return null;
             }
         }
 

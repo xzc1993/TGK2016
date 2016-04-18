@@ -20,6 +20,7 @@ namespace Assets.ProceduralTerrain
             for (int i = 0; i < PoolSize; i++)
             {
                 var obj = Instantiate(Prefabs[_random.Next(Prefabs.Count)]);
+                obj.SetActive(false);
                 Put(obj);
             }
         }
