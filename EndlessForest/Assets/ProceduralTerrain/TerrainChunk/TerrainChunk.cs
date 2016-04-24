@@ -24,6 +24,7 @@ public class TerrainChunk : MonoBehaviour
     public int TreesMaxCount;
     public int BushesMaxCount;
     public int RocksMaxCount;
+	public int AnimalMaxCount;
 
     [Header("Terrain")]
     public Material Material;
@@ -49,10 +50,12 @@ public class TerrainChunk : MonoBehaviour
     private GameObjectPool _bushesPool;
     private GameObjectPool _rockPool;
     private GameObjectPool _waterPool;
+	private GameObjectPool _velociraptorPool;
     private GameObjectManager _treeManager;
     private GameObjectManager _bushManager;
     private GameObjectManager _rockManager;
     private GameObjectManager _waterManager;
+	public GameObjectManager _velociraptorManager;
 
     private TerrainData _terrainData;
     private Terrain _terrain;
@@ -71,10 +74,12 @@ public class TerrainChunk : MonoBehaviour
         _bushesPool = GameObject.FindGameObjectWithTag("BushesPool").GetComponent<GameObjectPool>();
         _rockPool = GameObject.FindGameObjectWithTag("RockPool").GetComponent<GameObjectPool>();
         _waterPool = GameObject.FindGameObjectWithTag("WaterPool").GetComponent<GameObjectPool>();
+		_velociraptorPool = GameObject.FindGameObjectWithTag("VelociraptorPool").GetComponent<GameObjectPool>();
         _treeManager = new GameObjectManager(_treePool, RandomPositions(TreesMaxCount));
         _bushManager = new GameObjectManager(_bushesPool, RandomPositions(BushesMaxCount));
         _rockManager = new GameObjectManager(_rockPool, RandomRockPositions());
         _waterManager = new GameObjectManager(_waterPool, RandomLakePositions(), false);
+		_velociraptorManager = new GameObjectManager(_velociraptorPool, RandomAnimalPositions(), false);
 
         _heightmap = new float[HeightmapResolution, HeightmapResolution];
         _detailmaps = new List<int[,]>();
@@ -86,7 +91,10 @@ public class TerrainChunk : MonoBehaviour
     {
         _activating = true;
         CreateTerrainData();
-        _terrain = Terrain.CreateTerrainGameObject(_terrainData).GetComponent<Terrain>();
+		GameObject terrainObject = Terrain.CreateTerrainGameObject(_terrainData);
+		terrainObject.AddComponent<TerrainChunkAnimalTracker>();
+		terrainObject.GetComponent<TerrainChunkAnimalTracker>().setHomeChunk( this);
+		_terrain = terrainObject.GetComponent<Terrain>();
         InitTextures();
         CreateDetailmap();
         InitGrass();
@@ -105,6 +113,10 @@ public class TerrainChunk : MonoBehaviour
         Deactivate();
     }
 
+	public GameObjectManager getVelociraptorManager(){
+		return this._velociraptorManager;
+	}
+		
     //////////////////////// INIT/////////////////////////
 
     private void CreateTerrainData()
@@ -164,6 +176,7 @@ public class TerrainChunk : MonoBehaviour
         yield return StartCoroutine(_bushManager.Activate());
         yield return StartCoroutine(_rockManager.Activate());
         yield return StartCoroutine(_waterManager.Activate());
+		yield return StartCoroutine(_velociraptorManager.Activate());
         FadeIn();
     }
 
@@ -190,6 +203,7 @@ public class TerrainChunk : MonoBehaviour
         _bushManager.Deactivate();
         _rockManager.Deactivate();
         _waterManager.Deactivate();
+		_velociraptorManager.Deactivate();
     }
 
     private void DeactivateTerrain()
@@ -273,18 +287,15 @@ public class TerrainChunk : MonoBehaviour
         };
     }
 
-    private GetPositionsDelegate RandomRockPositions()
-    {
-        return delegate
-        {
-            List<Vector3> positions = new List<Vector3>();
-            for (int i = 0; i < _random.Next(RocksMaxCount); i++)
-            {
-                positions.Add(RandomTreePosition() + new Vector3(0, 0.2f, 0));
-            }
-            return positions;
-        };
-    }
+	private GetPositionsDelegate RandomAnimalPositions()
+	{
+		return RandomPositions(AnimalMaxCount);
+	}
+
+	private GetPositionsDelegate RandomRockPositions()
+	{
+		return RandomPositions(RocksMaxCount);
+	}
 
     private GetPositionsDelegate RandomPositions(int maxCount)
     {
@@ -293,7 +304,16 @@ public class TerrainChunk : MonoBehaviour
             List<Vector3> positions = new List<Vector3>();
             for (int i = 0; i < _random.Next(maxCount); i++)
             {
-                positions.Add(RandomTreePosition());
+				Vector3 position = RandomTreePosition() + 
+					new Vector3( 
+						(float) _random.NextDouble() * 0.2f, 
+						0, 
+						(float) _random.NextDouble() * 0.2f
+					);
+				//position.y = _heightmap[ (int)position.x, (int)position.z];
+				positions.Add(
+						position
+				);
             }
             return positions;
         };

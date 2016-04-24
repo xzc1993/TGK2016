@@ -6,7 +6,7 @@ using Random = System.Random;
 
 namespace Assets.ProceduralTerrain
 {
-    class GameObjectPool : MonoBehaviour
+    public class GameObjectPool : MonoBehaviour
     {
         public int PoolSize;
         public List<GameObject> Prefabs;

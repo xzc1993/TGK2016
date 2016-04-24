@@ -21,6 +21,7 @@ public class comp_cs : MonoBehaviour {
 	int AIState = 0;
 	int currentWaypointID = 0;
 	Vector3 waypointPosition = new Vector3();
+	GameObject currentTerrainChunk = null;
 	float sleepUntil = 0;
 
 	void Awake ()
@@ -109,13 +110,15 @@ public class comp_cs : MonoBehaviour {
 	*/
 
 
-	void OnCollisionEnter(Collision collision )
+	void OnCollisionEnter(Collision collision)
 	{
 		if(collision.gameObject.name == "Terrain"){
 			anim.SetBool("Onground", true);
+
+			collision.gameObject.GetComponent<TerrainChunkAnimalTracker>().OnAnimalInterChunkMovement( this.gameObject, currentTerrainChunk);
+			currentTerrainChunk = collision.gameObject;
 		} 
 		else{
-			Debug.Log(collision.gameObject.name);
 			if(collision.gameObject.name != "Cube" && AIState == 1){
 				Vector2 offset = Random.insideUnitCircle * 10;
 				waypointPosition = transform.position - (waypointPosition - transform.position);
@@ -174,9 +177,8 @@ public class comp_cs : MonoBehaviour {
 			transform.position = new Vector3( transform.position.x + offset.x, transform.position.y, transform.position.z + offset.z);
 			transform.rotation = Quaternion.LookRotation( offset);
 			if( (waypointPosition.x - transform.position.x) < 0.1f && (waypointPosition.z - transform.position.z) < 0.1f){
-				Debug.Log( System.String.Format( "Waypoint #{0} reached!", currentWaypointID));
+				//Debug.Log( System.String.Format( "Waypoint #{0} reached!", currentWaypointID));
 				currentWaypointID += 1;
-				Debug.Log( "Idle");
 				anim.SetInteger ("State", 0);
 				AIState = 0;
 			}

@@ -10,8 +10,7 @@ namespace Assets.ProceduralTerrain
 {
     public delegate List<Vector3> GetPositionsDelegate();
 
-
-    class GameObjectManager
+    public class GameObjectManager
     {
         public List<GameObject> ObjectList { get; set; }
         public GameObjectPool ObjectPool { get; set; }

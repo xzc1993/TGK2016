@@ -66,6 +66,7 @@ function Start()
      originalSpeed = speed;
     
 }
+
 function FixedUpdate()
 {
  	 
