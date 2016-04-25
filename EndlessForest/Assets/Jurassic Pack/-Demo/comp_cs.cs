@@ -54,6 +54,12 @@ public class comp_cs : MonoBehaviour {
 		anim = GetComponent<Animator>();
 		lods = GetComponent<LODGroup>();
 		rend = GetComponentsInChildren <SkinnedMeshRenderer>();
+
+		Texture meshTexture = skin[ new System.Random().Next( skin.Length) ],
+		eyeTexture = eyes[ new System.Random().Next( eyes.Length) ];
+		foreach (SkinnedMeshRenderer smr in rend) {
+			smr.material.mainTexture = meshTexture;
+		}
 	}
 	
 	/*
@@ -108,8 +114,6 @@ public class comp_cs : MonoBehaviour {
 		GUI.Label(new Rect(5,460,Screen.width,Screen.height),"num 7 = Die");
 	}
 	*/
-
-
 	void OnCollisionEnter(Collision collision)
 	{
 		if(collision.gameObject.name == "Terrain"){

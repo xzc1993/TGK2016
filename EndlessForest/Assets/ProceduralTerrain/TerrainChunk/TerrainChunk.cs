@@ -75,6 +75,7 @@ public class TerrainChunk : MonoBehaviour
         _rockPool = GameObject.FindGameObjectWithTag("RockPool").GetComponent<GameObjectPool>();
         _waterPool = GameObject.FindGameObjectWithTag("WaterPool").GetComponent<GameObjectPool>();
 		_velociraptorPool = GameObject.FindGameObjectWithTag("VelociraptorPool").GetComponent<GameObjectPool>();
+
         _treeManager = new GameObjectManager(_treePool, RandomPositions(TreesMaxCount));
         _bushManager = new GameObjectManager(_bushesPool, RandomPositions(BushesMaxCount));
         _rockManager = new GameObjectManager(_rockPool, RandomRockPositions());
