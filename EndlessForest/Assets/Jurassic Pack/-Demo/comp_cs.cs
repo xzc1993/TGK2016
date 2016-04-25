@@ -60,6 +60,8 @@ public class comp_cs : MonoBehaviour {
 		foreach (SkinnedMeshRenderer smr in rend) {
 			smr.material.mainTexture = meshTexture;
 		}
+		float scale = (float) new System.Random().NextDouble() + 0.5f;
+		transform.localScale = new Vector3(scale, scale, scale);
 	}
 	
 	/*
