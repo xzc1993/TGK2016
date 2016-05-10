@@ -143,7 +143,9 @@ namespace Wasabimole.ProceduralTree
 
     public void GenerateTree()
     {
+#if UNITY_EDITOR
         _isGenerating = true;
+#endif
         gameObject.isStatic = false;
 
 
@@ -180,7 +182,9 @@ namespace Wasabimole.ProceduralTree
         transform.localRotation = originalRotation; // Restore original object rotation
 
         SetTreeMesh(); // Create/Update MeshFilter's mesh
+#if UNITY_EDITOR
         _isGenerating = false;
+#endif
         //yield return null;
     }
 

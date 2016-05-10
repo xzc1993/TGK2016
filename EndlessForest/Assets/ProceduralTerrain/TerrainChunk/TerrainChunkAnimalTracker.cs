@@ -6,7 +6,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Xml.XPath;
 using Assets.ProceduralTerrain;
-using UnityEditorInternal;
 using Assets.ProceduralTerrain.Utils;
 using LibNoise.Unity;
 using LibNoise.Unity.Generator;
