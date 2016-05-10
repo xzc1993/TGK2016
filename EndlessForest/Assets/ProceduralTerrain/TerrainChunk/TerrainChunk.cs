@@ -6,7 +6,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Xml.XPath;
 using Assets.ProceduralTerrain;
-using UnityEditorInternal;
 using Assets.ProceduralTerrain.Utils;
 using LibNoise.Unity;
 using LibNoise.Unity.Generator;
@@ -305,32 +304,44 @@ public class TerrainChunk : MonoBehaviour
             List<Vector3> positions = new List<Vector3>();
             for (int i = 0; i < _random.Next(maxCount); i++)
             {
-				Vector3 position = RandomTreePosition() + 
-					new Vector3( 
-						(float) _random.NextDouble() * 0.2f, 
-						0, 
-						(float) _random.NextDouble() * 0.2f
-					);
-				//position.y = _heightmap[ (int)position.x, (int)position.z];
-				positions.Add(
-						position
-				);
+                bool water;
+                Vector3 position = RandomTreePosition(out water) + 
+                    new Vector3( 
+                            // (float) _random.NextDouble() * 0.2f, 
+                            // 0, 
+                            // (float) _random.NextDouble() * 0.2f
+                            );
+                //position.y = _heightmap[ (int)position.x, (int)position.z];
+                if (!water)
+                {
+                    positions.Add(
+                            position
+                            );
+                }
             }
             return positions;
         };
     }
 
-    private Vector3 RandomTreePosition()
+    private Vector3 RandomTreePosition(out bool water)
     {
+        water = false;
         var terrainPosition = _terrain.GetPosition();
         var treeRelativeX = Random.value % ChunkLength;
         var treeRelativeZ = Random.value % ChunkLength;
-        var xRes = ((ChunkX + treeRelativeX) * HeightmapResolution);
-        var zRes = ((ChunkZ + treeRelativeZ) * HeightmapResolution);
+        var xRes = ((treeRelativeX / ChunkLength) * HeightmapResolution);
+        var zRes = ((treeRelativeZ / ChunkLength) * HeightmapResolution);
 
-        var treeX = terrainPosition.x + treeRelativeX * ChunkLength;
+        if (_heightmap[(int)(xRes), (int)(zRes)] < (SeaLevel / ChunkHeight))
+        {
+            water = true;
+            return new Vector3();
+        }
+
+        var treeX = terrainPosition.x + treeRelativeX;
         var treeY = _terrainData.GetHeight((int)xRes, (int)zRes) - 0.5;
-        var treeZ = terrainPosition.z + treeRelativeZ * ChunkLength;
+        // var treeY = _heightmap[(int)(treeRelativeZ * HeightmapResolution), (int)(treeRelativeX * HeightmapResolution)];
+        var treeZ = terrainPosition.z + treeRelativeZ;
         return new Vector3(treeX, (float)treeY, treeZ);
     }
 

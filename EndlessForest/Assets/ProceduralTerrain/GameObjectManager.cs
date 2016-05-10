@@ -27,10 +27,23 @@ namespace Assets.ProceduralTerrain
 
         public IEnumerator Activate()
         {
+            System.Random random = new System.Random();
             foreach (Vector3 position in GetPositions())
             {
                 GameObject obj = ObjectPool.Take();
                 obj.transform.position = position;
+                if (ObjectPool.tag == "RockPool")
+                {
+                    RaycastHit hit;
+                    var ray = new Ray(position, Vector3.up);
+                    if (Physics.Raycast(ray, out hit, 2.0f))
+                    {
+                        obj.transform.up = hit.normal + new Vector3(
+                                (float)(random.NextDouble() - 0.5) * 0.2f,
+                                (float)(random.NextDouble() - 0.5) * 0.2f,
+                                (float)(random.NextDouble() - 0.5) * 0.2f);
+                    }
+                }
                 if (_fade)
                 {
                     FadeUtils.SetFadeOut(obj);
