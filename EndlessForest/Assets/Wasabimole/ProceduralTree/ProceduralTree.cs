@@ -255,7 +255,7 @@ namespace Wasabimole.ProceduralTree
             {
                 // Create a cap for ending the branch
                 vertexList.Add(position); // Add central vertex
-                uvList.Add(texCoord + Vector2.one); // Twist UVs to get rings effect
+				uvList.Add(texCoord + new Vector2(0.5f, 1f)); // Twist UVs to get rings effect
                 for (var n = vertexList.Count - NumberOfSides - 2; n < vertexList.Count - 2; n++) // Add cap
                 {
                     triangleList.Add(n);
@@ -333,22 +333,22 @@ namespace Wasabimole.ProceduralTree
             offset.x = Mathf.Cos( rotation + Mathf.PI/2);
             offset.z = Mathf.Sin( rotation + Mathf.PI/2);
             vertexList.Add( position + quaternion * offset);
-            uvList.Add( new Vector2(0f, 0.5f));
+			uvList.Add( new Vector2(1f, 0.5f));
 
             offset.x = Mathf.Sqrt(2) * Mathf.Cos( rotation + Mathf.PI/4);
             offset.z = Mathf.Sqrt(2) * Mathf.Sin( rotation + Mathf.PI/4);
             vertexList.Add( position + quaternion * offset);
-            uvList.Add( new Vector2(1f, 0.5f));
+			uvList.Add( new Vector2(1f, 1f));
 
             offset.x = Mathf.Cos( rotation); 
             offset.z = Mathf.Sin( rotation);
             vertexList.Add( position + quaternion * offset);
-            uvList.Add( new Vector2(0f, 1f));
+			uvList.Add( new Vector2(0f, 1f));
 
 
             vertexList.Add( position);
-            uvList.Add( new Vector2(1f, 1f));
 
+			uvList.Add( new Vector2(0f, 0.5f));
             triangleList.Add( vertexList.Count - 4);
             triangleList.Add( vertexList.Count - 2);
             triangleList.Add( vertexList.Count - 1);
